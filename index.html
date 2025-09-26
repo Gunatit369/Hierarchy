@@ -3,9 +3,628 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
+    <title>SMS HIEARCHY</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f4f8;
+        }
+
+        /* --- Tree Structure Styling --- */
+        .tree ul {
+            position: relative;
+            padding-top: 20px;
+            transition: all 0.5s;
+            -webkit-transition: all 0.5s;
+            -moz-transition: all 0.5s;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start; /* Ensures all nodes on a level start at the same height */
+        }
+
+        .tree li {
+            text-align: center;
+            list-style-type: none;
+            position: relative;
+            padding: 20px 5px 0 5px;
+            transition: all 0.5s;
+            -webkit-transition: all 0.5s;
+            -moz-transition: all 0.5s;
+        }
+
+        /* Connectors */
+        .tree li::before, .tree li::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            right: 50%;
+            border-top: 2px solid #63b3ed;
+            width: 50%;
+            height: 20px;
+        }
+
+        .tree li::after {
+            right: auto;
+            left: 50%;
+            border-left: 2px solid #63b3ed;
+        }
+
+        /* Add this new rule to prevent the group container from drawing the default connector */
+        .tree li.layout-group::after {
+            border-left: none;
+        }
+        .tree li.layout-group::before {
+            border-top: none;
+        }
+
+
+        .tree li:only-child::after, .tree li:only-child::before { display: none; }
+        .tree li:only-child { padding-top: 0; }
+        .tree li:first-child::before, .tree li:last-child::after { border: 0 none; }
+        .tree li:last-child::before { border-right: 2px solid #63b3ed; }
+        .tree ul ul::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 50%;
+            border-left: 2px solid #63b3ed;
+            width: 0;
+            height: 25px;
+        }
+
+        /* Node styling */
+        .tree li .node {
+            border: 2px solid #63b3ed;
+            padding: 8px;
+            text-decoration: none;
+            color: #1a202c;
+            background-color: #ffffff;
+            font-size: 14px;
+            display: inline-flex;
+            flex-direction: column;
+            align-items: center;
+            transition: all 0.3s;
+            min-width: 100px;
+            cursor: pointer;
+            position: relative;
+            -webkit-user-select: none; /* Safari */
+            -ms-user-select: none; /* IE 10+ */
+            user-select: none; /* Standard syntax */
+        }
+        
+        .node-photo {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            margin-bottom: 8px;
+            border: 2px solid #bee3f8;
+            object-fit: cover;
+        }
+        
+        /* New class to disable the tree when a modal is open */
+        #tree-container.disabled {
+            pointer-events: none;
+            filter: blur(2px);
+        }
+        
+        /* Styles for Edit Mode */
+        .edit-mode .node[data-level*='3'],
+        .edit-mode .node[data-level*='4'],
+        .edit-mode .node[data-level*='5'],
+        .edit-mode .node[data-level*='6'] {
+            cursor: cell;
+            box-shadow: 0 0 0 2px #f59e0b;
+        }
+
+        .tree li .node:hover, .tree li .node:hover+ul li .node {
+            background: #e2e8f0;
+            color: #000;
+            border: 2px solid #4299e1;
+        }
+        
+        .tree li .node:hover+ul li::after,
+        .tree li .node:hover+ul li::before,
+        .tree li .node:hover+ul::before,
+        .tree li .node:hover+ul ul::before {
+            border-color: #4299e1;
+        }
+
+        /* Sizing based on level */
+        .tree li .node[data-level="0"] { font-size: 16px; font-weight: 700; min-width: 120px; }
+        .tree li .node[data-level="0"] .node-photo { width: 50px; height: 50px; }
+        .tree li .node[data-level="1"] { font-size: 14px; font-weight: 500; min-width: 110px; }
+        .tree li .node[data-level="1"] .node-photo { width: 45px; height: 45px; }
+        .tree li .node[data-level="2"] { font-size: 12px; min-width: 100px; }
+        .tree li .node[data-level="3"],
+        .tree li .node[data-level*='4'],
+        .tree li .node[data-level*='5'],
+        .tree li .node[data-level*='6'] { font-size: 10px; padding: 6px; min-width: 90px; }
+        .tree li .node[data-level*='3'] .node-photo,
+        .tree li .node[data-level*='4'] .node-photo,
+        .tree li .node[data-level*='5'] .node-photo,
+        .tree li .node[data-level*='6'] .node-photo { width: 35px; height: 35px; }
+        
+        .percentage-display {
+            display: block;
+            font-size: 0.75em;
+            font-weight: bold;
+            color: #2d3748;
+            margin-top: 4px;
+        }
+
+        /* --- Highlighting Styles --- */
+        .selected-node {
+            background-color: #3182ce !important;
+            color: white !important;
+            border-color: #2b6cb0 !important;
+            transform: scale(1.1);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+        .highlighted-child {
+            background-color: #68d391 !important;
+            color: #1a202c !important;
+            border-color: #48bb78 !important;
+        }
+        .tree li .node[data-level="0"].selected-node { background-color: #ed8936 !important; border-color: #dd6b20 !important; }
+        .tree li .node[data-level="1"].selected-node { background-color: #38bdf8 !important; border-color: #0ea5e9 !important; }
+        .tree li .node[data-level="2"].selected-node { background-color: #FEFDEB !important; color: #1a202c !important; border-color: #D1C0A8 !important; }
+        
+        /* --- Attendance Color Styling --- */
+        .attendance-present { background-color: #c6f6d5 !important; border-color: #68d391 !important; }
+        .attendance-absent { background-color: #fed7d7 !important; border-color: #fc8181 !important; }
+        .attendance-partial { background-color: #feebc8 !important; border-color: #f6ad55 !important; }
+
+        /* Vertical Layout */
+        .tree ul.vertical-layout { flex-direction: column; align-items: center; }
+        .tree ul.vertical-layout li { padding-top: 10px; padding-bottom: 10px; }
+        .tree ul.vertical-layout li::before,
+        .tree ul.vertical-layout li::after { display: none; }
+        .tree ul.vertical-layout li::before {
+            display: block; content: ''; position: absolute; top: -10px; left: 50%;
+            transform: translateX(-50%); width: 0; height: 30px; border-left: 2px solid #63b3ed;
+        }
+        .tree ul.vertical-layout li:first-child::before { display: none; }
+        
+        /* Connector for vertical group to the main horizontal line */
+        .tree li.layout-group > ul.vertical-layout::before {
+            content: '';
+            position: absolute;
+            top: -20px; /* Adjust this to line up with the horizontal bar */
+            left: 50%;
+            transform: translateX(-50%);
+            border-left: 2px solid #63b3ed;
+            width: 0;
+            height: 20px;
+        }
+
+    </style>
 </head>
-<body>
-    <h1>Hello, World!</h1>
+<body class="bg-gray-100 text-gray-800 flex flex-col items-center justify-center min-h-screen p-4 md:p-8">
+
+    <div class="w-full max-w-7xl text-center mb-6">
+        <h1 class="text-3xl md:text-4xl font-bold text-gray-700">SMS Hierarchy</h1>
+    </div>
+
+    
+        <div class="grid grid-cols-1 md:grid-cols-1 gap-2">
+            <button id="birthday-reminder-btn" class="w-full px-4 py-2 bg-green-500 text-white rounded-md hover:bg-green-600">Birthday Reminders</button>
+          
+        </div>
+
+
+    <div class="tree-wrapper overflow-x-auto w-full pb-8">
+        <div id="tree-container" class="tree inline-block whitespace-nowrap"></div>
+    </div>
+
+    <!-- Info Modal -->
+    <div id="info-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center p-4 z-50">
+        <div class="bg-white p-6 rounded-lg shadow-xl w-full max-w-sm flex flex-col items-center">
+            <img id="modal-photo" src="" alt="Photo" class="w-24 h-24 rounded-full border-4 border-gray-200 mb-4 object-cover">
+            <h3 id="modal-name" class="text-xl font-bold mb-4"></h3>
+            <p class="mb-2 text-gray-700"><strong>Contact:</strong> <span id="modal-contact-container"></span></p>
+            <p class="mb-4 text-gray-700"><strong>Birthdate:</strong> <span id="modal-birthdate"></span></p>
+            <button id="close-modal-btn" class="w-full bg-red-500 text-white py-2 rounded-md hover:bg-red-600 transition-colors">Close</button>
+        </div>
+    </div>
+    
+    <!-- Birthday Modal -->
+    <div id="birthday-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center p-4 z-50">
+        <div class="bg-white p-6 rounded-lg shadow-xl w-full max-w-sm">
+            <h3 class="text-xl font-bold mb-4">Upcoming Birthdays</h3>
+            <ul id="birthday-list" class="space-y-2 mb-4">
+                <!-- Birthday names will be injected here -->
+            </ul>
+            <button id="close-birthday-modal-btn" class="w-full bg-red-500 text-white py-2 rounded-md hover:bg-red-600 transition-colors">Close</button>
+        </div>
+    </div>
+
+
+    <script>
+        // Data structure for the tree
+        const familyTreeData = {
+            name: "Anand Sagar Swamiji", photo: "https://placehold.co/80x80/orange/white?text=AS", contact: "9099929109", birthdate: "N/A",
+            children: [
+                {
+                    name: "Mayank Bhai", photo: "https://placehold.co/80x80/blue/white?text=MB", contact: "9712943369", birthdate: "Nov 10, 1986",
+                    children: [
+                        {
+                            name: "Ashu Bhai, Chetan Bhai, Paresh Bhai", photo: "https://placehold.co/80x80/green/white?text=ACP", contact: "9429985504", birthdate: "Feb 2, 1971",
+                            children: [
+                                {
+                                    name: "Zeel Bhai", photo: "https://placehold.co/60x60/purple/white?text=ZB", contact: "9274510369", birthdate: "May 6, 2002",
+                                    children: [
+                                        {
+                                            name: "Aksh Bhai", photo: "IMG-20250906-WA0032.jpg", contact: "8200395164", birthdate: "Dec 11, 2005",
+                                            children: [
+                                                { name: "Ajay Bhai", photo: "IMG-20250913-WA0020.jpg", contact: "7487024446", birthdate: "Dec 11, 2008", children: [ { name: "Sachin Bhai", photo: "https://placehold.co/60x60/gray/white?text=SB", contact: "8735803712", birthdate: "Nov 16, 2003" }, { name: "Vrund Bhai", photo: "IMG-20250913-WA0012.jpg", contact: "8128698506", birthdate: "Jul 2, 2005"  }, { name: "Prince Bhai", photo: "https://placehold.co/60x60/gray/white?text=PB", contact: "7016139036", birthdate: "Jan 8, 2008"} ] }, 
+                                                { name: "Satyam Bhai", photo: "WhatsApp Image 2025-09-26 at 15.28.58_6c3cce40.jpg", contact: "7405509145", birthdate: "Nov 6, 2007", children: [ { name: "Meet Bhai", photo: "https://placehold.co/60x60/gray/white?text=MB", contact: " ", birthdate: "Apr 4, 2014" } ] },
+                                                { isGroup: true, children: [ { name: "Prem Bhai", photo: "https://placehold.co/60x60/gray/white?text=PB", contact: "7779025647", birthdate: "May 5, 2007"}, { name: "Het Bhai", photo: "https://placehold.co/60x60/gray/white?text=HB", contact: "9328200568", birthdate: "Jun 6, 2008"}, { name: "Himanshu Bhai", photo: "https://placehold.co/60x60/gray/white?text=HB", contact: "9723143477", birthdate: "Aug 31, 2005"} ] }
+                                            ]
+                                        },
+                                        {
+                                            name: "Sujit Bhai", photo: "IMG-20250913-WA0013.jpg", contact: "9499809299", birthdate: "Sep 27, 2006",
+                                            children: [
+                                                { name: "Dhvij Bhai", photo: "IMG-20250913-WA0027.jpg", contact: "7984175107", birthdate: "Mar 1, 2006"},
+                                                { name: "Abhishek Bhai", photo: "IMG-20250913-WA0017.jpg", contact: "8511684107", birthdate: "Jan 16, 2005", children: [{ name: "Nitesh Bhai", photo: "IMG-20250913-WA0014.jpg", contact: "7436026741", birthdate: "Mar 12, 2003" }, { name: "Sangam Bhai", photo: "IMG-20250913-WA0016.jpg", contact: "7436026741", birthdate: "Mar 12, 2003" }, { name: "Pritam bhai", photo: "https://placehold.co/60x60/gray/white?text=PB", contact: "7990790905", birthdate: "Oct 10, 2020" } ] },
+                                                { isGroup: true, children: [ { name: "Vanraj Bhai", photo: "https://placehold.co/60x60/gray/white?text=VB", contact: "123-456-0011", birthdate: "jun 21, 2007"}, { name: "Om Bhai", photo: "https://placehold.co/60x60/gray/white?text=OB", contact: "7621851520", birthdate: "Feb 23, 2007"}, { name: "Parth Bhai", photo: "https://placehold.co/60x60/gray/white?text=PB", contact: "6355568142", birthdate: "Jan 1, 2023"}, { name: "Sawai Bhai", photo: "https://placehold.co/60x60/gray/white?text=SB", contact: "8658856816", birthdate: "Jul 17, 2007"}, { name: "Mohit Bhai", photo: "https://placehold.co/60x60/gray/white?text=MB", contact: "8128426827", birthdate: "Mar 3, 2025"}, { name: "Tripurari Bhai", photo: "https://placehold.co/60x60/gray/white?text=TB", contact: "9316595362", birthdate: "Apr 4, 2026"}, { name: "Jaydeep Bhai", photo: "https://placehold.co/60x60/gray/white?text=JB", contact: "9316442762", birthdate: "Jan 21, 2007"} ] }
+                                            ]
+                                        },
+                                        {
+                                            name: "Swapnil Bhai", photo: "IMG-20250913-WA0015.jpg", contact: "9426677875", birthdate: "Mar 3, 2006",
+                                            children: [
+                                                { name: "Itesh Bhai", photo: "IMG-20250913-WA0026.jpg", contact: "8799385283", birthdate: "Feb 6, 2006", children: [
+                                                        { name: "Raj Bhai", photo: "IMG-20250926-WA0008.jpg", contact: "7984448272", birthdate: "Nov 7, 2007", children: [ { name: "Dax Bhai", photo: "IMG-20250926-WA0005.jpg", contact: "9925293645", birthdate: "Jan 31, 2009" }, { name: "Nitul Bhai", photo: "IMG-20250913-WA0024.jpg", contact: "7359157431", birthdate: "Jul 15, 2008" }, { name: "Akshay Bhai Chauhan", photo: "https://placehold.co/60x60/gray/white?text=AC", contact: "9106244181", birthdate: "Aug 8, 2030"} ] },
+                                                        { name: "Harsh Bhai", photo: "IMG-20250913-WA0018.jpg", contact: "9638279520", birthdate: "Nov 2, 2007" },
+                                                    ]
+                                                },
+                                                { name: "Vraj Bhai", photo: "IMG-20250926-WA0009.jpg", contact: "9558118026", birthdate: "Sep 4, 2007", children: [ { name: "Bhavya Bhai", photo: "IMG-20250913-WA0011.jpg", contact: "9558118026", birthdate: "Nov 11, 2010" }, { name: "Dhruv Bhai", photo: "IMG-20250926-WA0010.jpg", contact: "9687850645", birthdate: "Sep 15, 2010" }, { name: "Rudra Bhai", photo: "IMG-20250926-WA0011.jpg", contact: "9712247756", birthdate: "Nov 11, 2033" }, { name: "Ayushbhai Maru", photo: "https://placehold.co/60x60/gray/white?text=AM", contact: "123-456-0024", birthdate: "Dec 12, 2034"} ] },
+                                            ]
+                                        },
+                                        { name: "Yash bhai", photo: "Yashbhai.jpg", contact: "6351155449", birthdate: "Apr 30, 2002", children: [ { name: "Bhailu Bhai", photo: "https://placehold.co/60x60/gray/white?text=BB", contact: "8866333771", birthdate: "Apr 4, 2018"} ] },
+                                        { name: "Dhruvil Bhai", photo: "https://placehold.co/60x60/yellow/black?text=DB", contact: "9173758688", birthdate: "Apr 11, 2004", children: [ { name: "Avi Bhai", photo: "https://placehold.co/60x60/gray/white?text=AB", contact: "123-456-7907", birthdate: "Jun 6, 2019"}, { name: "Pujan Bhai", photo: "https://placehold.co/60x60/gray/white?text=PB", contact: "123-456-7908", birthdate: "Jul 7, 2020"} ] },
+                                        { name: "Chaitanya Bhai", photo: "https://placehold.co/60x60/blue/white?text=CB", contact: "8200839475", birthdate: "Dec 14, 2002", children: [ { name: "Jaybhai Parekh", photo: "https://placehold.co/60x60/gray/white?text=JP", contact: "123-456-0025", birthdate: "Jan 1, 2035"}, { name: "Dhruvbhai Parekh (Hari)", photo: "https://placehold.co/60x60/gray/white?text=DP", contact: "123-456-0026", birthdate: "Feb 2, 2036"}, { name: "Pranavbhai Aacharya", photo: "https://placehold.co/60x60/gray/white?text=PA", contact: "9510525796", birthdate: "Jan 14, 2004"}, { name: "Ruchitbhai Patel", photo: "https://placehold.co/60x60/gray/white?text=RP", contact: "6353562799", birthdate: "Jan 16, 1996"}, { name: "Vijaybhai Vikaram", photo: "https://placehold.co/60x60/gray/white?text=VV", contact: "123-456-0029", birthdate: "May 5, 2039"}, { name: "Surajbhai Gupta", photo: "https://placehold.co/60x60/gray/white?text=SG", contact: "8294047792", birthdate: "Apr 4, 2005"}, { name: "Aksharbhai Parekh ", photo: "https://placehold.co/60x60/gray/white?text=AP", contact: "123-456-0031", birthdate: "Jul 7, 2041"}, { name: "Gauravbhai Mori", photo: "https://placehold.co/60x60/gray/white?text=GM", contact: "8140489798", birthdate: "Nov 27, 1998"}, { name: "Tejbhai Parekh", photo: "https://placehold.co/60x60/gray/white?text=TP", contact: "123-456-0033", birthdate: "Sep 9, 2043"} ] }
+                                    ]
+                                },
+                                { name: "Manjit Bhai", photo: "WhatsApp Image 2025-09-26 at 16.02.13_e2ddf23c.jpg", contact: "7984353271", birthdate: "Dec 14, 2003", children: [ {name: "Talakshbhai", photo: "https://placehold.co/60x60/gray/white?text=TB", contact: "9316053997", birthdate: "Oct 27, 2003"}, {name: "Akshaybhai Purohit", photo: "https://placehold.co/60x60/gray/white?text=AP", contact: "7984448272", birthdate: "Jan 11, 2004"}, {name: "Shivambhai Sargara", photo: "https://placehold.co/60x60/gray/white?text=SS", contact: "9998881848", birthdate: "Dec 12, 2046"}, {name: "Indreshbhai", photo: "https://placehold.co/60x60/gray/white?text=IB", contact: "8153045721", birthdate: "Jun 1, 2004"}, {name: "Meetbhai Solanki", photo: "https://placehold.co/60x60/gray/white?text=MS", contact: "9227194492", birthdate: "Aug 17, 2004"}, {name: "Rahulbhai Paswan", photo: "https://placehold.co/60x60/gray/white?text=RP", contact: "9328261368", birthdate: "Feb 1, 2001"}, {name: "Kiranbhai", photo: "https://placehold.co/60x60/gray/white?text=KB", contact: "6352818263", birthdate: "Apr 4, 2050"}, {name: "Pruthvibhai", photo: "https://placehold.co/60x60/gray/white?text=PB", contact: "8799362237", birthdate: "May 5, 2051"}, {name: "Miteshbhai", photo: "https://placehold.co/60x60/gray/white?text=MB", contact: "9979940332", birthdate: "Sep 24, 2003"} ] },
+                                { name: "Paras Bhai", photo: "IMG-20250913-WA0021.jpg", contact: "9016026147", birthdate: "Sep 27, 2003", children: [ {name: "Jaybhai Makwana", photo: "https://placehold.co/60x60/gray/white?text=JM", contact: "9054049292", birthdate: "Mar 17, 2004"}, {name: "Yashbhai Joshi", photo: "https://placehold.co/60x60/gray/white?text=YJ", contact: "7487809214", birthdate: "Jul 19, 2002"}, {name: "Raghunandanbhai", photo: "IMG-20250913-WA0022.jpg", contact: "7600328607", birthdate: "Oct 16, 2003"}, {name: "Rahulbhai Sharma", photo: "IMG-20250913-WA0019.jpg", contact:  "9016985589", birthdate: "Aug 5, 2000"}, {name: "Abhinandanbhai", photo: "https://placehold.co/60x60/gray/white?text=AB", contact: "9624030237", birthdate: "Jan 12, 2000"}, {name: "Mohitbhai", photo: "IMG-20250913-WA0023.jpg", contact: "9723226038", birthdate: "Mar 22, 2003"}, {name: "Chiragbhai Bariya", photo: "https://placehold.co/60x60/gray/white?text=CB", contact: "8849788511", birthdate: "Dec 29, 2003"}, {name: "Rajdeepbhai Chauhan", photo: "https://placehold.co/60x60/gray/white?text=RC", contact: "123-456-0050", birthdate: "Feb 2, 2060"}, {name: "Meetbhai Vasava", photo: "https://placehold.co/60x60/gray/white?text=MV", contact: "7621976001", birthdate: "Mar 3, 2061"}, {name: "Rushikbhai", photo: "https://placehold.co/60x60/gray/white?text=RB", contact: "+44 7823655008", birthdate: "Oct 25, 2003"}, {name: "Atulbhai", photo: "https://placehold.co/60x60/gray/white?text=AB", contact: "123-456-0053", birthdate: "Jun 13, 2004"} ] }
+                            ]
+                        },
+                        {
+                            name: "Nisarg Bhai", photo: "https://placehold.co/80x80/purple/white?text=NB", contact: "9033051141", birthdate: "Nov 29, 1989",
+                            children: [
+                                { name: "Kishan Bhai", photo: "https://placehold.co/60x60/gray/white?text=KB", contact: "9327002808", birthdate: "Aug 16, 2004", children: [ { name: "Sarvatit Bhai", photo: "https://placehold.co/60x60/gray/white?text=SB", contact: "9712946087", birthdate: "Dec 26, 2009" } ] },
+                                { name: "Krutik Bhai", photo: "https://placehold.co/60x60/gray/white?text=KB", contact: "9328068456", birthdate: "Oct 9, 2001", children: [ { name: "Monarkbhai Dave", photo: "https://placehold.co/60x60/gray/white?text=MD", contact: "123-456-0054", birthdate: "Jun 6, 2064" }, { name: "Parthbhai Soni", photo: "https://placehold.co/60x60/gray/white?text=PS", contact: "9723945468", birthdate: "Oct 29, 2005" }, { name: "Ajaybhai Vasava", photo: "https://placehold.co/60x60/gray/white?text=AV", contact: "123-456-0056", birthdate: "Aug 8, 2066" }, { name: "Kartikbhai Bhoi", photo: "https://placehold.co/60x60/gray/white?text=KB", contact: "8347672159", birthdate: "Dec 17, 2005" }, { name: "Dhruvbhai Parekh", photo: "https://placehold.co/60x60/gray/white?text=DP", contact: "8128382434", birthdate: "Aug 7, 2006" }, { name: "Yashbhai Rana", photo: "https://placehold.co/60x60/gray/white?text=YR", contact: "123-456-0059", birthdate: "Nov 11, 2069" } ] },
+                            ]
+                        }
+                    ]
+                }
+            ]
+        };
+
+        // --- ATTENDANCE DATA ---
+        let attendanceData = {};
+        const initialAttendanceData = {}; // Cleared all default records
+        
+        const nodeDetailsMap = {};
+        let isEditMode = false;
+
+        function flattenTree(node) {
+            if (!node) return;
+            nodeDetailsMap[node.name] = {
+                contact: node.contact || 'Not available',
+                birthdate: node.birthdate || 'Not available',
+                photo: node.photo || 'https://placehold.co/80x80/E2E8F0/4A5568?text=??'
+            };
+            if (node.children) {
+                node.children.forEach(child => flattenTree(child));
+            }
+        }
+        
+        flattenTree(familyTreeData);
+
+
+        function getFormattedDate(date) {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        }
+
+        function generateTreeHTML(node, level = 0, selectedDate) {
+            if (node.isGroup) {
+                let html = `<li class="layout-group"><ul class="vertical-layout">`;
+                node.children.forEach(child => {
+                    html += generateTreeHTML(child, level, selectedDate);
+                });
+                html += '</ul></li>';
+                return html;
+            }
+
+            const dailyAttendance = attendanceData[selectedDate] || {};
+            let attendanceClass = '';
+            // Apply attendance color to level 3 and deeper.
+            if (level >= 3 && dailyAttendance[node.name]) {
+                const status = dailyAttendance[node.name].toLowerCase();
+                attendanceClass = ` attendance-${status}`;
+            }
+
+            const verticalLayoutParents = ["Abhishek Bhai", "Vraj Bhai", "Manjit Bhai", "Paras Bhai", "Krutik Bhai", "Chaitanya Bhai"];
+            let ulClass = verticalLayoutParents.includes(node.name) ? ' class="vertical-layout"' : '';
+            const nodePhoto = node.photo || 'https://placehold.co/60x60/E2E8F0/4A5568?text=??';
+
+            let html = `<li><span class="node${attendanceClass}" data-level="${level}" data-name="${node.name}"><img src="${nodePhoto}" alt="${node.name}" class="node-photo"><span class="node-name">${node.name}</span><span class="percentage-display"></span></span>`;
+            if (node.children && node.children.length > 0) {
+                html += `<ul${ulClass}>`;
+                node.children.forEach(child => {
+                    html += generateTreeHTML(child, level + 1, selectedDate);
+                });
+                html += '</ul>';
+            }
+            html += '</li>';
+            return html;
+        }
+        
+        function handleEditClick(node) {
+            const level = parseInt(node.dataset.level, 10);
+            if (level < 3) return;
+
+            const selectedDate = getFormattedDate(new Date()); // Always use today's date for editing
+            
+            if (!attendanceData[selectedDate]) {
+                attendanceData[selectedDate] = {};
+            }
+
+            const name = node.dataset.name;
+            const currentStatus = attendanceData[selectedDate][name];
+            let nextStatus;
+            
+            node.classList.remove('attendance-present', 'attendance-partial', 'attendance-absent');
+
+            if (currentStatus === 'Present') {
+                nextStatus = 'Partial';
+                node.classList.add('attendance-partial');
+            } else if (currentStatus === 'Partial') {
+                nextStatus = 'Absent';
+                 node.classList.add('attendance-absent');
+            } else if (currentStatus === 'Absent') {
+                nextStatus = undefined; // Clears the status
+                delete attendanceData[selectedDate][name];
+            } else {
+                nextStatus = 'Present';
+                node.classList.add('attendance-present');
+            }
+
+            if(nextStatus) {
+                attendanceData[selectedDate][name] = nextStatus;
+            }
+        }
+
+
+        function setupEventListeners() {
+            const treeContainer = document.getElementById('tree-container');
+            let lastTapTime = 0;
+            let tapTimeout;
+
+            // --- Use Event Delegation on the main container ---
+            treeContainer.addEventListener('click', (e) => {
+                const node = e.target.closest('.node');
+                if (node) {
+                    if (isEditMode) {
+                        handleEditClick(node);
+                    } else {
+                        handleHighlight(node);
+                    }
+                }
+            });
+
+            treeContainer.addEventListener('dblclick', (e) => {
+                const node = e.target.closest('.node');
+                 if(node && !isEditMode) {
+                    handleDoubleClick(node);
+                }
+            });
+
+            treeContainer.addEventListener('touchend', (e) => {
+                const node = e.target.closest('.node');
+                if (node && !isEditMode) {
+                    const currentTime = new Date().getTime();
+                    const timeSinceLastTap = currentTime - lastTapTime;
+                    
+                    clearTimeout(tapTimeout);
+
+                    if (timeSinceLastTap < 300 && timeSinceLastTap > 0) {
+                        // Double tap
+                        e.preventDefault();
+                        handleDoubleClick(node);
+                        lastTapTime = 0; 
+                    }
+                    lastTapTime = currentTime;
+                }
+            });
+
+            // --- Modal Event Listeners ---
+            const infoModal = document.getElementById('info-modal');
+            const closeInfoModalBtn = document.getElementById('close-modal-btn');
+            const birthdayModal = document.getElementById('birthday-modal');
+            const closeBirthdayModalBtn = document.getElementById('close-birthday-modal-btn');
+            const birthdayReminderBtn = document.getElementById('birthday-reminder-btn');
+            const editAttendanceBtn = document.getElementById('edit-attendance-btn');
+
+            
+            closeInfoModalBtn.addEventListener('click', () => closeModal(infoModal));
+            infoModal.addEventListener('click', (e) => {
+                if (e.target.id === 'info-modal') closeModal(infoModal);
+            });
+            
+            closeBirthdayModalBtn.addEventListener('click', () => closeModal(birthdayModal));
+            birthdayModal.addEventListener('click', (e) => {
+                if (e.target.id === 'birthday-modal') closeModal(birthdayModal);
+            });
+
+            birthdayReminderBtn.addEventListener('click', showBirthdayReminders);
+            editAttendanceBtn.addEventListener('click', toggleEditMode);
+        }
+
+        function toggleEditMode() {
+            isEditMode = !isEditMode;
+            const treeContainer = document.getElementById('tree-container');
+            const btn = document.getElementById('edit-attendance-btn');
+            
+            // Re-render the tree for today's date to show the correct state
+            renderTree();
+
+            treeContainer.classList.toggle('edit-mode');
+
+            if (isEditMode) {
+                btn.textContent = 'Save & Exit Edit Mode';
+                btn.classList.remove('bg-yellow-500', 'hover:bg-yellow-600');
+                btn.classList.add('bg-red-500', 'hover:bg-red-600');
+                 document.querySelectorAll('.selected-node, .highlighted-child').forEach(el => el.classList.remove('selected-node', 'highlighted-child'));
+            } else {
+                btn.textContent = "Edit Today's Attendance";
+                btn.classList.add('bg-yellow-500', 'hover:bg-yellow-600');
+                btn.classList.remove('bg-red-500', 'hover:bg-red-600');
+                saveAttendanceToLocalStorage();
+                alert('Attendance saved for today!');
+            }
+        }
+        
+        function saveAttendanceToLocalStorage() {
+            try {
+                localStorage.setItem('smsHierarchyAttendance', JSON.stringify(attendanceData));
+            } catch (e) {
+                console.error("Could not save attendance data to local storage.", e);
+                alert("Error: Could not save attendance. Your browser might be in private mode or storage is full.");
+            }
+        }
+        
+        function loadAttendanceFromLocalStorage() {
+            const savedData = localStorage.getItem('smsHierarchyAttendance');
+            if (savedData) {
+                try {
+                    attendanceData = JSON.parse(savedData);
+                } catch(e) {
+                    console.error("Could not parse saved attendance data.", e);
+                    attendanceData = initialAttendanceData;
+                }
+            } else {
+                attendanceData = initialAttendanceData;
+            }
+        }
+
+        function handleHighlight(node) {
+            if (node.classList.contains('selected-node')) {
+                document.querySelectorAll('.selected-node, .highlighted-child').forEach(el => el.classList.remove('selected-node', 'highlighted-child'));
+                return;
+            }
+            document.querySelectorAll('.selected-node, .highlighted-child').forEach(el => el.classList.remove('selected-node', 'highlighted-child'));
+            node.classList.add('selected-node');
+            const parentLi = node.parentElement;
+            const childrenUls = parentLi.querySelectorAll(':scope > ul');
+            childrenUls.forEach(ul => {
+                const childNodes = ul.querySelectorAll(':scope > li > .node');
+                childNodes.forEach(child => child.classList.add('highlighted-child'));
+                const groupLis = ul.querySelectorAll(':scope > li.layout-group > ul > li > .node');
+                groupLis.forEach(child => child.classList.add('highlighted-child'));
+            });
+        }
+        
+        function handleDoubleClick(node) {
+            const nodeName = node.dataset.name;
+            const details = nodeDetailsMap[nodeName];
+            const modal = document.getElementById('info-modal');
+
+            if (details) {
+                document.getElementById('modal-photo').src = details.photo;
+                document.getElementById('modal-name').textContent = nodeName;
+                const contactContainer = document.getElementById('modal-contact-container');
+                if (details.contact && details.contact.trim() !== 'N/A' && /\d/.test(details.contact)) {
+                    let contactNumber = details.contact.replace(/\D/g, '');
+                    if (contactNumber.length === 10 && !contactNumber.startsWith('91')) {
+                        contactNumber = '91' + contactNumber;
+                    }
+                    contactContainer.innerHTML = `<a href="https://wa.me/${contactNumber}" target="_blank" rel="noopener noreferrer" class="text-blue-500 hover:underline">${details.contact}</a>`;
+                } else {
+                    contactContainer.textContent = details.contact || 'N/A';
+                }
+                document.getElementById('modal-birthdate').textContent = details.birthdate;
+                
+                openModal(modal);
+            }
+        }
+
+        function openModal(modal) {
+             modal.classList.remove('hidden');
+             modal.classList.add('flex');
+             document.getElementById('tree-container').classList.add('disabled');
+        }
+
+        function closeModal(modal) {
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+            document.getElementById('tree-container').classList.remove('disabled');
+        }
+        
+        function showBirthdayReminders() {
+            const upcomingBirthdays = [];
+            const today = new Date();
+            const nextSevenDays = new Date();
+            nextSevenDays.setDate(today.getDate() + 7);
+            for (const person of Object.keys(nodeDetailsMap)) {
+                const details = nodeDetailsMap[person];
+                if (details.birthdate && details.birthdate !== 'N/A') {
+                    const birthDate = new Date(details.birthdate);
+                    if (isNaN(birthDate.getTime())) continue; 
+                    const thisYearBirthday = new Date(today.getFullYear(), birthDate.getMonth(), birthDate.getDate());
+                    if (thisYearBirthday >= today && thisYearBirthday <= nextSevenDays) {
+                        upcomingBirthdays.push({ name: person, date: thisYearBirthday });
+                    } else {
+                        if (today.getMonth() === 11 && birthDate.getMonth() === 0) {
+                             const nextYearBirthday = new Date(today.getFullYear() + 1, birthDate.getMonth(), birthDate.getDate());
+                             if (nextYearBirthday >= today && nextYearBirthday <= nextSevenDays) {
+                                upcomingBirthdays.push({ name: person, date: nextYearBirthday });
+                             }
+                        }
+                    }
+                }
+            }
+            upcomingBirthdays.sort((a, b) => a.date - b.date);
+            const birthdayList = document.getElementById('birthday-list');
+            birthdayList.innerHTML = ''; 
+            if (upcomingBirthdays.length > 0) {
+                upcomingBirthdays.forEach(b => {
+                    const li = document.createElement('li');
+                    li.className = 'text-gray-700';
+                    const formattedDate = b.date.toLocaleDateString('en-GB', { day: 'numeric', month: 'long' });
+                    li.innerHTML = `<strong>${b.name}</strong> - ${formattedDate}`;
+                    birthdayList.appendChild(li);
+                });
+            } else {
+                birthdayList.innerHTML = '<li class="text-gray-500">No upcoming birthdays in the next 7 days.</li>';
+            }
+            const modal = document.getElementById('birthday-modal');
+            openModal(modal);
+        }
+
+        function renderTree() {
+            const todayString = getFormattedDate(new Date());
+            const treeContainer = document.getElementById('tree-container');
+            if (treeContainer) {
+                treeContainer.innerHTML = `<ul>${generateTreeHTML(familyTreeData, 0, todayString)}</ul>`;
+                setupEventListeners();
+            }
+        }
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            loadAttendanceFromLocalStorage();
+            renderTree();
+        });
+    </script>
+
 </body>
 </html>
+
